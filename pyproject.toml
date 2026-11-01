@@ -7,10 +7,8 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "pydantic[email]>=2.0",
-    "python-multipart>=0.0.9",
+    "fastapi[standard]>=0.128.0",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
@@ -37,3 +35,6 @@ target-version = "py310"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.fastapi]
+entrypoint = "main:app"
