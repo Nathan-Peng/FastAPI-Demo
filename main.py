@@ -6,24 +6,34 @@ FastAPI 完整基础功能示例
 文档：http://127.0.0.1:8000/docs
 """
 
-from typing import Optional
+import os
 from datetime import datetime
 
 from fastapi import (
-    FastAPI, Depends, HTTPException, Header, Cookie, File, UploadFile,
-    Form, Request, BackgroundTasks, status, Query,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
 )
-from fastapi.responses import JSONResponse, HTMLResponse
-from pydantic import BaseModel, Field, EmailStr
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ============ 1. 数据模型（Pydantic）============
 class Item(BaseModel):
     """请求体 / 响应模型示例"""
-    name: str = Field(..., example="苹果", description="商品名称")
+    name: str = Field(..., description="商品名称")
     price: float = Field(..., gt=0, description="价格必须大于0")
-    description: Optional[str] = None
-    tax: Optional[float] = None
+    description: str | None = None
+    tax: float | None = None
 
     # 示例值（用于自动文档）
     model_config = {
@@ -38,7 +48,7 @@ class Item(BaseModel):
 class User(BaseModel):
     username: str
     email: EmailStr
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
 
 # ============ 2. 创建应用实例 ============
@@ -50,7 +60,7 @@ app = FastAPI(
 
 
 # ============ 3. 依赖注入 ============
-def get_query_token(token: Optional[str] = None):
+def get_query_token(token: str | None = None):
     """简单的依赖：验证查询 token"""
     if token is None:
         raise HTTPException(status_code=400, detail="缺少 token 参数")
@@ -104,7 +114,7 @@ async def hello(name: str, greeting: str = "你好"):
 @app.get("/items/{item_id}", tags=["路径参数"])
 async def read_item(
     item_id: int,          # 路径参数，自动转为 int
-    q: Optional[str] = None,  # 可选查询参数
+    q: str | None = None,  # 可选查询参数
     short: bool = False,    # 布尔查询参数
 ):
     """演示路径参数 + 多种查询参数"""
@@ -133,9 +143,9 @@ async def update_item(item_id: int, item: Item):
 
 # --- 6.4 查询参数列表 ---
 @app.get("/search/", tags=["查询参数"])
-async def search(q: list[str] = Query(default=[])):
+async def search(q: list[str] | None = Query(default=None)):
     """支持重复查询参数，如 ?q=a&q=b"""
-    return {"query": q}
+    return {"query": q or []}
 
 
 # --- 6.5 表单数据 ---
@@ -175,15 +185,15 @@ async def protected(token: str = Depends(get_query_token)):
 # --- 6.8 Header / Cookie ---
 @app.get("/headers/", tags=["Header/Cookie"])
 async def read_headers(
-    user_agent: Optional[str] = Header(None),
-    x_token: Optional[str] = Header(None),
+    user_agent: str | None = Header(None),
+    x_token: str | None = Header(None),
 ):
     """读取请求头"""
     return {"User-Agent": user_agent, "X-Token": x_token}
 
 
 @app.get("/cookies/", tags=["Header/Cookie"])
-async def read_cookies(session_id: Optional[str] = Cookie(None)):
+async def read_cookies(session_id: str | None = Cookie(None)):
     """读取 Cookie"""
     return {"session_id": session_id}
 
@@ -233,4 +243,10 @@ async def get_user(user_id: int):
 # ============ 7. 启动入口 ============
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host=os.getenv("APP_HOST", "0.0.0.0"),
+        port=int(os.getenv("APP_PORT", "8000")),
+        reload=os.getenv("APP_RELOAD", "true").lower() in {"1", "true", "yes"},
+        log_level=os.getenv("LOG_LEVEL", "info").lower(),
+    )
