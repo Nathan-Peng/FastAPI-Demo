@@ -20,6 +20,9 @@ async def test_root(client):
     resp = await client.get("/")
     assert resp.status_code == 200
     assert "欢迎" in resp.json()["message"]
+    assert resp.headers["content-type"].startswith("application/json")
+    assert resp.headers["content-type"].endswith("charset=utf-8")
+    assert resp.headers["content-language"] == "zh-CN"
 
 
 @pytest.mark.anyio
@@ -105,7 +108,9 @@ async def test_protected_without_token(client):
 async def test_html_response(client):
     resp = await client.get("/html/")
     assert resp.status_code == 200
-    assert "Hello, FastAPI!" in resp.text
+    assert 'charset="UTF-8"' in resp.text
+    assert "你好，FastAPI！" in resp.text
+    assert resp.headers["content-type"].endswith("charset=utf-8")
 
 
 @pytest.mark.anyio
@@ -168,3 +173,11 @@ async def test_headers(client):
     data = resp.json()
     assert data["User-Agent"] == "pytest"
     assert data["X-Token"] == "tok"
+
+
+@pytest.mark.anyio
+async def test_docs_are_utf8(client):
+    resp = await client.get("/docs")
+    assert resp.status_code == 200
+    assert 'charset="utf-8"' in resp.text.lower()
+    assert resp.headers["content-type"].endswith("charset=utf-8")

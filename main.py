@@ -6,6 +6,7 @@ FastAPI 完整基础功能示例
 文档：http://127.0.0.1:8000/docs
 """
 
+import json
 import os
 from datetime import datetime
 
@@ -23,8 +24,23 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr, Field
+
+
+class UTF8JSONResponse(JSONResponse):
+    """返回不转义中文字符，并明确声明 UTF-8 编码。"""
+
+    media_type = "application/json"
+
+    def render(self, content):
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 
 # ============ 1. 数据模型（Pydantic）============
@@ -56,7 +72,26 @@ app = FastAPI(
     title="FastAPI 完整示例",
     description="覆盖 FastAPI 所有基础功能的示例项目",
     version="1.0.0",
+    default_response_class=UTF8JSONResponse,
+    docs_url=None,
 )
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    """使用明确的 UTF-8 声明和移动端语言提示生成 Swagger UI。"""
+    html = get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Swagger UI",
+    )
+    content = html.body.decode("utf-8")
+    content = content.replace("<html>", '<html lang="zh-CN">', 1)
+    content = content.replace(
+        "<head>",
+        '<head><meta charset="UTF-8">',
+        1,
+    )
+    return HTMLResponse(content=content)
 
 
 # ============ 3. 依赖注入 ============
@@ -82,13 +117,18 @@ async def add_process_time_header(request: Request, call_next):
     response = await call_next(request)
     process_time = (datetime.now() - start).total_seconds()
     response.headers["X-Process-Time"] = str(process_time)
+    content_type = response.headers.get("content-type", "")
+    if content_type.startswith(("application/json", "text/", "application/javascript")):
+        media_type = content_type.split(";", 1)[0].strip()
+        response.headers["Content-Type"] = f"{media_type}; charset=utf-8"
+    response.headers.setdefault("Content-Language", "zh-CN")
     return response
 
 
 # ============ 5. 异常处理 ============
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    return JSONResponse(status_code=400, content={"message": str(exc)})
+    return UTF8JSONResponse(status_code=400, content={"message": str(exc)})
 
 
 # ============ 6. 路由示例 ============
@@ -202,13 +242,19 @@ async def read_cookies(session_id: str | None = Cookie(None)):
 @app.get("/html/", tags=["响应"], response_class=HTMLResponse)
 async def get_html():
     """返回 HTML 响应"""
-    return "<h1>Hello, FastAPI!</h1>"
+    return (
+        "<!doctype html><html lang=\"zh-CN\"><head>"
+        "<meta charset=\"UTF-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        "<title>FastAPI 示例</title></head>"
+        "<body><h1>你好，FastAPI！</h1></body></html>"
+    )
 
 
 @app.get("/custom-status/", tags=["响应"])
 async def custom_status():
     """自定义状态码与响应头"""
-    return JSONResponse(
+    return UTF8JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content={"msg": "已接受处理"},
         headers={"X-Custom": "value"},
